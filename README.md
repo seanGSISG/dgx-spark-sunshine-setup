@@ -13,8 +13,7 @@ Stream your DGX Spark desktop at high quality (up to 1440p @ 120Hz or 4K @ 60Hz)
 - **Interactive Installation**: Guided prompts for resolution, codec, and bitrate selection
 - **Automatic Backups**: All existing configurations are backed up before modification
 - **Hardware-Accelerated Encoding**: Uses NVENC (NVIDIA's hardware encoder) for optimal performance
-- **NVIDIA Branding**: Beautiful terminal interface with NVIDIA green color scheme
-
+- 
 ## Supported Configurations
 
 ### Display Resolutions
