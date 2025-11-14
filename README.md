@@ -1,5 +1,7 @@
 # NVIDIA DGX Spark Sunshine Streaming Setup
 
+![DGX Spark Sunshine Installer](img/install.png)
+
 Automated installer for [Sunshine](https://github.com/LizardByte/Sunshine) game streaming with virtual display configuration on NVIDIA DGX Spark (GB10) systems.
 
 Stream your DGX Spark desktop at high quality (up to 1440p @ 120Hz or 4K @ 60Hz) without needing a physical monitor attached.
