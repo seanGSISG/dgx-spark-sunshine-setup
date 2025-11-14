@@ -117,13 +117,13 @@ check_prerequisites() {
 
     # Check if running on DGX Spark
     log_substep "Checking hardware platform..."
-    if ! lspci | grep -q "NVIDIA.*GB10"; then
+    if command -v nvidia-smi &> /dev/null && nvidia-smi -L 2>/dev/null | grep -q "GB10"; then
+        log_success "GB10 GPU detected"
+    else
         log_warning "GB10 GPU not detected - this script is designed for DGX Spark"
         if ! confirm "Continue anyway?"; then
             exit 1
         fi
-    else
-        log_success "GB10 GPU detected"
     fi
 
     # Check for NVIDIA driver
