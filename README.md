@@ -95,22 +95,38 @@ After running the installer:
    sudo reboot
    ```
 
-2. **Verify virtual display**
+2. **Run the post-installation helper** (Recommended)
    ```bash
+   ./after-install.sh
+   ```
+
+   The helper provides:
+   - **Automated checks**: Virtual display, Sunshine service, GPU encoding, network access
+   - **Quick actions**: Start/stop/restart Sunshine, view logs, reset credentials
+   - **Troubleshooting**: Detailed diagnostics with step-by-step guidance
+   - **Interactive menu**: Easy-to-use interface or command-line options
+
+   **Quick checks:**
+   ```bash
+   ./after-install.sh --check-all        # Run all verification checks
+   ./after-install.sh --check-display    # Check virtual display only
+   ./after-install.sh --check-sunshine   # Check Sunshine service only
+   ./after-install.sh --logs             # View recent Sunshine logs
+   ```
+
+3. **Manual verification** (if not using helper):
+   ```bash
+   # Verify virtual display
    xrandr
-   # Look for your selected resolution and refresh rate
-   ```
 
-3. **Start Sunshine**
-   ```bash
+   # Start Sunshine
    systemctl --user start sunshine
+
+   # Configure credentials
+   # Open: https://localhost:47990
    ```
 
-4. **Configure Sunshine credentials**
-   - Open: https://localhost:47990
-   - Set your username and password
-
-5. **Connect with Moonlight**
+4. **Connect with Moonlight**
    - Download Moonlight client: https://moonlight-stream.org
    - Scan for your DGX Spark on the network
    - Enter PIN to pair
@@ -120,14 +136,15 @@ After running the installer:
 ```
 dgx-spark-sunshine-setup/
 ├── install.sh                    # Main installation script
+├── after-install.sh              # Post-installation helper & troubleshooting tool
+├── img/
+│   └── install.png              # Installer screenshot
 ├── edid/
 │   └── samsung-q800t.bin        # Bundled EDID file (4K@60Hz, 1440p@120Hz)
 ├── templates/
 │   ├── xorg.conf.template       # X11 configuration template
 │   ├── sunshine.conf.template   # Sunshine configuration template
 │   └── sunshine-override.conf   # Systemd environment variables
-├── docs/
-│   └── implementation-plan.md   # Detailed implementation documentation
 └── README.md                    # This file
 ```
 
