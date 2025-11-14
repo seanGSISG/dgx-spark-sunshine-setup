@@ -5,7 +5,8 @@
 # Run this script after rebooting to verify installation and troubleshoot
 # ============================================================================
 
-set -e
+# Note: Intentionally NOT using 'set -e' to allow diagnostic checks to continue
+# even if some commands fail (e.g., xrandr from SSH session)
 
 # ============================================================================
 # Colors and Formatting (NVIDIA Green Theme)
@@ -76,6 +77,27 @@ check_virtual_display() {
 
     local xrandr_output
     xrandr_output=$(xrandr 2>&1)
+
+    # Check if running from SSH without X11 access
+    if echo "$xrandr_output" | grep -q "Can't open display"; then
+        log_warning "Cannot check display from SSH session"
+        echo ""
+        log_info "You're running this from an SSH session without X11 access"
+        echo -e "${GRAY}  Option 1:${RESET} Run this script from the desktop terminal after login"
+        echo -e "${GRAY}  Option 2:${RESET} Set DISPLAY variable: ${DIM}export DISPLAY=:0${RESET}"
+        echo -e "${GRAY}  Option 3:${RESET} Check X11 logs manually: ${DIM}sudo grep -i 'connected' /var/log/Xorg.0.log${RESET}"
+        echo ""
+        log_info "Checking X11 logs for display information..."
+        if [[ -f /var/log/Xorg.0.log ]]; then
+            local display_info
+            display_info=$(sudo grep -i "DFP-0.*connected\|Mode.*x.*Hz" /var/log/Xorg.0.log 2>/dev/null | tail -3)
+            if [[ -n "$display_info" ]]; then
+                echo "$display_info" | sed "s/^/${GRAY}  /"
+                echo -e "${RESET}"
+            fi
+        fi
+        return 0
+    fi
 
     # Check for connected displays
     if echo "$xrandr_output" | grep -q "connected"; then
