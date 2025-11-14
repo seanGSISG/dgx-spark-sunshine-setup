@@ -1,0 +1,27 @@
+# Temporary files
+*.tmp
+*.log
+*.swp
+*.swo
+*~
+
+# Backup files
+*.bak
+*.backup
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.sublime-*
+
+# User-specific configurations (don't commit custom EDIDs users might add)
+edid/*.bin
+!edid/samsung-q800t.bin
+
+# Testing artifacts
+test-output/
+*.test
