@@ -643,6 +643,38 @@ configure_permissions() {
 }
 
 # ============================================================================
+# X Session Environment
+# ============================================================================
+# Sunshine runs as a systemd user service and needs DISPLAY and XAUTHORITY
+# in its environment to capture an X session. This step adds the
+# upstream-recommended dbus-update line to ~/.xprofile so those values are
+# propagated to systemd user services after graphical login.
+configure_xprofile() {
+    log_step "Configuring X Session Environment"
+
+    local xprofile="${HOME}/.xprofile"
+    local dbus_line='dbus-update-activation-environment --systemd DISPLAY XAUTHORITY'
+
+    log_substep "Ensuring ~/.xprofile runs dbus-update on X login..."
+
+    if [[ -f "${xprofile}" ]] && grep -qF -- "${dbus_line}" "${xprofile}"; then
+        log_success "~/.xprofile already configured"
+    else
+        if [[ -f "${xprofile}" ]]; then
+            cp "${xprofile}" "${BACKUP_DIR}/.xprofile"
+            log_substep "Existing ~/.xprofile backed up"
+        fi
+        {
+            printf '\n# Propagate DISPLAY and XAUTHORITY to systemd user services\n'
+            printf '%s\n' "${dbus_line}"
+        } >> "${xprofile}"
+        log_success "~/.xprofile updated"
+    fi
+
+    log_complete
+}
+
+# ============================================================================
 # Sunshine Configuration
 # ============================================================================
 configure_sunshine() {
@@ -1025,6 +1057,7 @@ main() {
     install_edid
     configure_x11
     configure_permissions
+    configure_xprofile
     configure_sunshine
     validate_installation
     configure_tailscale
