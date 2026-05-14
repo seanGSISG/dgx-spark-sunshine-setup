@@ -8,7 +8,21 @@
 # origin_web_ui_allowed = wan
 
 # Display Output
-output_name = HDMI-0
+# Use X11 capture rather than the default KMS path. On Ubuntu 24.04 the
+# unprivileged_userns AppArmor profile strips CAP_SYS_ADMIN from sunshine
+# and KMS capture fails. Upstream Sunshine recommends moving away from
+# KMS regardless. See:
+# https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2troubleshooting.html#kms-streaming-fails
+capture = x11
+
+# output_name must be the numeric Sunshine display index, not the X
+# connector name. On the DGX Spark, the NVIDIA driver can misresolve the
+# string form to a RandR XID which Sunshine then uses as a list index,
+# producing "Could not stream display number [N], there are only [M]
+# displays". On the GB10, index 0 is HDMI-0 and indices 1-4 are the
+# USB-C ports. If capture fails, check Sunshine startup logs for the
+# listed display ids.
+output_name = 0
 
 # Video Encoding Settings
 encoder = nvenc
