@@ -35,6 +35,7 @@ readonly SUNSHINE_CONFIG_DIR="${HOME}/.config/sunshine"
 readonly SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 
 # User selections (set via prompts)
+INSTALL_MODE=""
 RESOLUTION=""
 REFRESH_RATE=""
 CODEC=""
@@ -611,7 +612,18 @@ configure_x11() {
     log_step "Configuring X11"
 
     if [[ "${INSTALL_MODE}" == "monitor" ]]; then
-        log_substep "Monitor mode: not installing /etc/X11/xorg.conf"
+        if [[ -f "/etc/X11/xorg.conf" ]]; then
+            if sudo grep -q "DGX Spark Sunshine Setup Installer" /etc/X11/xorg.conf 2>/dev/null; then
+                log_substep "Monitor mode: removing previous installer-managed /etc/X11/xorg.conf"
+                sudo rm -f /etc/X11/xorg.conf
+                log_success "Removed installer-managed xorg.conf"
+            else
+                log_warning "Existing /etc/X11/xorg.conf was not created by this installer; leaving it in place"
+                log_substep "If display issues persist, inspect or remove it manually"
+            fi
+        else
+            log_substep "Monitor mode: no xorg.conf installed"
+        fi
         log_substep "The NVIDIA driver will auto-detect connected displays"
         log_complete
         return 0
@@ -1005,7 +1017,17 @@ validate_installation() {
             ((errors++))
         fi
     else
-        log_substep "Monitor mode: skipping xorg.conf and EDID checks"
+        log_substep "Checking monitor-mode X11 configuration..."
+        if [[ -f "/etc/X11/xorg.conf" ]]; then
+            if sudo grep -q "DGX Spark Sunshine Setup Installer" /etc/X11/xorg.conf 2>/dev/null; then
+                log_error "Installer-managed xorg.conf still exists in monitor mode"
+                ((errors++))
+            else
+                log_warning "Custom /etc/X11/xorg.conf exists; monitor mode will not fully rely on auto-detection"
+            fi
+        else
+            log_success "No installer-managed xorg.conf active"
+        fi
     fi
 
     # Check Sunshine config
