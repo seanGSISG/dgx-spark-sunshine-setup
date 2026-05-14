@@ -207,6 +207,58 @@ check_prerequisites() {
 # ============================================================================
 # Interactive Configuration
 # ============================================================================
+# Two ways to set up a Spark for sunshine:
+#
+#   monitor  - A real monitor or an HDMI dummy plug is always connected.
+#              The NVIDIA driver auto-detects whatever is plugged in, and
+#              no synthetic xorg.conf is installed. Recommended for most.
+#
+#   headless - Truly headless, with nothing plugged into the GPU. Installs
+#              an xorg.conf that drives a virtual TV-0 connector with a
+#              custom EDID so sunshine can still capture a display.
+#              Will break if a real monitor is later connected.
+#
+# Sets the INSTALL_MODE global. install_edid, configure_x11, and the
+# validation step honor it.
+configure_install_mode() {
+    log_step "Installation Mode"
+
+    echo ""
+    echo -e "${WHITE}${BOLD}How will this Spark be used?${RESET}"
+    echo ""
+    echo -e "${GRAY}  1)${RESET} ${BOLD}Monitor or HDMI dummy plug attached${RESET} ${NVIDIA_GREEN}[Recommended]${RESET}"
+    echo -e "${GRAY}     Streams whatever the GPU sees. Suitable for desktop use and"
+    echo -e "${GRAY}     for streaming with a real monitor or a passive HDMI dummy plug.${RESET}"
+    echo ""
+    echo -e "${GRAY}  2)${RESET} ${BOLD}Truly headless${RESET} ${DIM}(no monitor, no dummy plug, ever)${RESET}"
+    echo -e "${GRAY}     Installs a virtual-display xorg.conf with a custom EDID so"
+    echo -e "${GRAY}     sunshine can capture with nothing physically connected.${RESET}"
+    echo -e "${GRAY}     Streaming will break if you later plug a monitor in.${RESET}"
+    echo ""
+
+    local choice
+    while true; do
+        prompt_user "Select installation mode (1-2)" choice
+        case "${choice}" in
+            1)
+                INSTALL_MODE="monitor"
+                log_substep "Mode: monitor or dummy plug"
+                break
+                ;;
+            2)
+                INSTALL_MODE="headless"
+                log_substep "Mode: truly headless"
+                break
+                ;;
+            *)
+                log_error "Invalid selection. Please choose 1-2."
+                ;;
+        esac
+    done
+
+    log_complete
+}
+
 configure_resolution() {
     log_step "Display Configuration"
 
@@ -322,6 +374,13 @@ configure_bitrate() {
 configure_edid() {
     log_step "EDID Configuration"
 
+    if [[ "${INSTALL_MODE}" == "monitor" ]]; then
+        log_substep "Monitor mode: using whatever EDID the connected display provides"
+        EDID_SOURCE="none"
+        log_complete
+        return 0
+    fi
+
     echo ""
     echo -e "${WHITE}${BOLD}EDID Options:${RESET}"
     echo -e "${GRAY}  1)${RESET} Use bundled Samsung Q800T EDID ${DIM}(4K@60Hz, 1440p@120Hz)${RESET} ${NVIDIA_GREEN}[Recommended]${RESET}"
@@ -363,12 +422,15 @@ print_configuration_summary() {
     echo -e "${NVIDIA_GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo -e "${WHITE}${BOLD}Configuration Summary${RESET}"
     echo -e "${NVIDIA_GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${GRAY}  Mode:${RESET}        ${INSTALL_MODE}"
     echo -e "${GRAY}  Resolution:${RESET}  ${RESOLUTION} @ ${REFRESH_RATE}Hz"
     echo -e "${GRAY}  Codec:${RESET}       ${CODEC}"
     echo -e "${GRAY}  Bitrate:${RESET}     $((BITRATE / 1000)) Mbps"
-    echo -e "${GRAY}  EDID Source:${RESET} ${EDID_SOURCE}"
-    if [[ "${EDID_SOURCE}" == "custom" ]]; then
-        echo -e "${GRAY}  EDID Path:${RESET}   ${CUSTOM_EDID_PATH}"
+    if [[ "${INSTALL_MODE}" == "headless" ]]; then
+        echo -e "${GRAY}  EDID Source:${RESET} ${EDID_SOURCE}"
+        if [[ "${EDID_SOURCE}" == "custom" ]]; then
+            echo -e "${GRAY}  EDID Path:${RESET}   ${CUSTOM_EDID_PATH}"
+        fi
     fi
     echo -e "${NVIDIA_GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo ""
@@ -507,6 +569,12 @@ install_sunshine() {
 install_edid() {
     log_step "Installing EDID File"
 
+    if [[ "${INSTALL_MODE}" == "monitor" ]]; then
+        log_substep "Monitor mode: skipping EDID file install"
+        log_complete
+        return 0
+    fi
+
     local source_edid
     if [[ "${EDID_SOURCE}" == "bundled" ]]; then
         source_edid="${EDID_DIR}/samsung-q800t.bin"
@@ -541,6 +609,13 @@ install_edid() {
 # ============================================================================
 configure_x11() {
     log_step "Configuring X11"
+
+    if [[ "${INSTALL_MODE}" == "monitor" ]]; then
+        log_substep "Monitor mode: not installing /etc/X11/xorg.conf"
+        log_substep "The NVIDIA driver will auto-detect connected displays"
+        log_complete
+        return 0
+    fi
 
     # Detect GPU BusID
     log_substep "Detecting NVIDIA GPU BusID..."
@@ -905,28 +980,32 @@ validate_installation() {
         ((errors++))
     fi
 
-    # Check xorg.conf
-    log_substep "Checking xorg.conf..."
-    if [[ -f "/etc/X11/xorg.conf" ]]; then
-        log_success "xorg.conf exists"
-        if grep -q "CustomEDID" /etc/X11/xorg.conf; then
-            log_success "CustomEDID option found"
+    # Check xorg.conf (only in headless mode)
+    if [[ "${INSTALL_MODE}" == "headless" ]]; then
+        log_substep "Checking xorg.conf..."
+        if [[ -f "/etc/X11/xorg.conf" ]]; then
+            log_success "xorg.conf exists"
+            if grep -q "CustomEDID" /etc/X11/xorg.conf; then
+                log_success "CustomEDID option found"
+            else
+                log_error "CustomEDID option not found in xorg.conf"
+                ((errors++))
+            fi
         else
-            log_error "CustomEDID option not found in xorg.conf"
+            log_error "xorg.conf not found"
+            ((errors++))
+        fi
+
+        # Check EDID file
+        log_substep "Checking EDID file..."
+        if [[ -f "/etc/X11/4k120.edid" ]]; then
+            log_success "EDID file exists"
+        else
+            log_error "EDID file not found"
             ((errors++))
         fi
     else
-        log_error "xorg.conf not found"
-        ((errors++))
-    fi
-
-    # Check EDID file
-    log_substep "Checking EDID file..."
-    if [[ -f "/etc/X11/4k120.edid" ]]; then
-        log_success "EDID file exists"
-    else
-        log_error "EDID file not found"
-        ((errors++))
+        log_substep "Monitor mode: skipping xorg.conf and EDID checks"
     fi
 
     # Check Sunshine config
@@ -968,7 +1047,12 @@ print_final_instructions() {
     echo -e "${WHITE}${BOLD}Next Steps:${RESET}"
     echo ""
     echo -e "${NVIDIA_GREEN}1.${RESET} ${BOLD}Restart your system${RESET}"
-    echo -e "${GRAY}   └─${RESET} Required for X11 to load new virtual display configuration"
+    if [[ "${INSTALL_MODE}" == "headless" ]]; then
+        echo -e "${GRAY}   └─${RESET} Required for X11 to load the new virtual display configuration"
+    else
+        echo -e "${GRAY}   └─${RESET} Recommended so group changes and session updates take effect"
+        echo -e "${GRAY}   └─${RESET} Keep a monitor or HDMI dummy plug connected for sunshine to capture"
+    fi
     echo -e "${GRAY}   └─${RESET} Run: ${DIM}sudo reboot${RESET}"
     echo ""
     echo -e "${NVIDIA_GREEN}2.${RESET} ${BOLD}Run the post-installation helper${RESET} ${DIM}(Recommended)${RESET}"
@@ -1011,6 +1095,7 @@ main() {
     check_prerequisites
 
     # Interactive configuration
+    configure_install_mode
     configure_resolution
     configure_codec
     configure_bitrate
