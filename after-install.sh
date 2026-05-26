@@ -145,6 +145,28 @@ check_sunshine_service() {
         echo -e "${GRAY}  To enable: ${DIM}loginctl enable-linger $(whoami)${RESET}"
     fi
 
+    # Check XAUTHORITY in systemd user environment (required for screen capture)
+    local xauth_val
+    xauth_val=$(systemctl --user show-environment 2>/dev/null | grep '^XAUTHORITY=' | cut -d= -f2-)
+    if [[ -n "$xauth_val" ]]; then
+        log_success "XAUTHORITY set in systemd environment: ${DIM}${xauth_val}${RESET}"
+    else
+        log_warning "XAUTHORITY not set in systemd environment (Sunshine will capture a black screen)"
+        # Attempt auto-fix if we have a display
+        if [[ -n "${DISPLAY:-}" ]]; then
+            echo -e "${GRAY}  Attempting auto-fix...${RESET}"
+            if dbus-update-activation-environment --systemd DISPLAY XAUTHORITY 2>/dev/null; then
+                log_success "XAUTHORITY exported to systemd — restart Sunshine to apply"
+                echo -e "${GRAY}  Run: ${DIM}systemctl --user restart sunshine${RESET}"
+            else
+                log_error "Auto-fix failed"
+                echo -e "${GRAY}  Manual fix: ${DIM}dbus-update-activation-environment --systemd DISPLAY XAUTHORITY${RESET}"
+            fi
+        else
+            echo -e "${GRAY}  Run from a desktop terminal (not SSH): ${DIM}dbus-update-activation-environment --systemd DISPLAY XAUTHORITY${RESET}"
+        fi
+    fi
+
     echo ""
 
     if systemctl --user is-active sunshine &> /dev/null; then
