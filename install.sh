@@ -146,6 +146,18 @@ check_prerequisites() {
 
     local errors=0
 
+    # Refuse to run as root — the script uses sudo as needed, and running
+    # as root would put root in the video/input groups, write root's ~/.xprofile,
+    # and configure AutomaticLogin=root in /etc/gdm3/custom.conf. None of those
+    # are what the user actually wants.
+    log_substep "Checking effective user..."
+    if [[ $EUID -eq 0 ]]; then
+        log_error "Do not run this installer as root — it uses sudo as needed"
+        log_error "Run as your normal user: ./install.sh"
+        exit 1
+    fi
+    log_success "Running as ${USER} (uid ${EUID})"
+
     # Check if running on DGX Spark
     log_substep "Checking hardware platform..."
     if command -v nvidia-smi &> /dev/null && nvidia-smi -L 2>/dev/null | grep -q "GB10"; then
