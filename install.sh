@@ -146,6 +146,18 @@ check_prerequisites() {
 
     local errors=0
 
+    # Refuse to run as root — the script uses sudo as needed, and running
+    # as root would put root in the video/input groups, write root's ~/.xprofile,
+    # and configure AutomaticLogin=root in /etc/gdm3/custom.conf. None of those
+    # are what the user actually wants.
+    log_substep "Checking effective user..."
+    if [[ $EUID -eq 0 ]]; then
+        log_error "Do not run this installer as root — it uses sudo as needed"
+        log_error "Run as your normal user: ./install.sh"
+        exit 1
+    fi
+    log_success "Running as ${USER} (uid ${EUID})"
+
     # Check if running on DGX Spark
     log_substep "Checking hardware platform..."
     if command -v nvidia-smi &> /dev/null && nvidia-smi -L 2>/dev/null | grep -q "GB10"; then
@@ -643,6 +655,188 @@ configure_permissions() {
 }
 
 # ============================================================================
+# X Session Environment
+# ============================================================================
+# Sunshine runs as a systemd user service and needs DISPLAY and XAUTHORITY
+# in its environment to capture an X session. This step adds the
+# upstream-recommended dbus-update line to ~/.xprofile so those values are
+# propagated to systemd user services after graphical login.
+configure_xprofile() {
+    log_step "Configuring X Session Environment"
+
+    local xprofile="${HOME}/.xprofile"
+    local dbus_line='dbus-update-activation-environment --systemd DISPLAY XAUTHORITY'
+
+    # ~/.xprofile is only sourced under X11 sessions. Under Wayland (default
+    # in Ubuntu 25.04+ and possible on 24.04 if WaylandEnable was flipped),
+    # the dbus-update line never runs and Sunshine's ExecStartPre will time
+    # out after 60s on every boot. configure_autologin (next step) flips
+    # WaylandEnable=false for the auto-login path, but a user who declines
+    # auto-login and logs in to a Wayland session manually will silently hit
+    # this. Warn loudly; don't abort — the write is still correct for the
+    # next X11 login.
+    local session_type
+    session_type=$(loginctl show-session "${XDG_SESSION_ID:-}" -p Type --value 2>/dev/null || echo "unknown")
+    if [[ "${session_type}" == "wayland" ]]; then
+        log_warning "Current session is Wayland — ~/.xprofile is NOT sourced under Wayland."
+        log_warning "Sunshine needs an X11 session. Either accept the GDM auto-login"
+        log_warning "prompt in the next step (it disables Wayland), or log out and pick"
+        log_warning "'Ubuntu on Xorg' from the GDM gear menu before starting Sunshine."
+    fi
+
+    log_substep "Ensuring ~/.xprofile runs dbus-update on X login..."
+
+    if [[ -f "${xprofile}" ]] && grep -qF -- "${dbus_line}" "${xprofile}"; then
+        log_success "~/.xprofile already configured"
+    else
+        if [[ -f "${xprofile}" ]]; then
+            cp "${xprofile}" "${BACKUP_DIR}/.xprofile"
+            log_substep "Existing ~/.xprofile backed up"
+        fi
+        {
+            printf '\n# Propagate DISPLAY and XAUTHORITY to systemd user services\n'
+            printf '%s\n' "${dbus_line}"
+        } >> "${xprofile}"
+        log_success "~/.xprofile updated"
+    fi
+
+    log_complete
+}
+
+# ============================================================================
+# GDM Auto-login (Optional)
+# ============================================================================
+# Sunshine can only stream when an X session is active. On a headless
+# Spark there is no one to log in at the console, so GDM needs to do
+# it automatically at boot. WaylandEnable=false forces the session to
+# be X11, which sunshine's X11 capture path requires.
+configure_autologin() {
+    log_step "Configuring GDM Auto-login (Optional)"
+
+    if [[ ! -d /etc/gdm3 ]]; then
+        log_substep "GDM not detected; skipping auto-login configuration"
+        log_complete
+        return 0
+    fi
+
+    echo -e "${GRAY}For headless streaming, an X session must exist before sunshine"
+    echo -e "starts. GDM auto-login provides that on every boot without anyone"
+    echo -e "sitting at the console. Decline if this Spark is a desktop you"
+    echo -e "always log in at manually.${RESET}"
+    echo ""
+
+    local response
+    echo -ne "${NVIDIA_GREEN}?${RESET} Enable GDM auto-login as '${USER}' and disable Wayland? ${DIM}[y/N]${RESET}: "
+    read -r response
+
+    if [[ ! "${response}" =~ ^[Yy]$ ]]; then
+        log_substep "Skipped GDM auto-login configuration"
+        log_complete
+        return 0
+    fi
+
+    local gdm_conf="/etc/gdm3/custom.conf"
+    local temp_gdm
+    temp_gdm=$(mktemp /tmp/gdm-custom.conf.XXXXXX)
+    TEMP_FILES+=("${temp_gdm}")
+
+    if [[ -f "${gdm_conf}" ]]; then
+        sudo cp "${gdm_conf}" "${BACKUP_DIR}/gdm-custom.conf"
+        log_substep "Existing ${gdm_conf} backed up"
+        log_substep "Updating [daemon] keys in ${gdm_conf}..."
+        if ! sudo awk -v login_user="${USER}" '
+            function emit_daemon_keys() {
+                if (!seen_auto_enable) {
+                    print "AutomaticLoginEnable=true"
+                }
+                if (!seen_auto_login) {
+                    print "AutomaticLogin=" login_user
+                }
+                if (!seen_wayland) {
+                    print "WaylandEnable=false"
+                }
+            }
+            /^[[:space:]]*\[daemon\][[:space:]]*$/ {
+                if (in_daemon) {
+                    emit_daemon_keys()
+                }
+                in_daemon = 1
+                seen_daemon = 1
+                print
+                next
+            }
+            /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+                if (in_daemon) {
+                    emit_daemon_keys()
+                    in_daemon = 0
+                }
+                print
+                next
+            }
+            in_daemon && /^[[:space:]]*#?[[:space:]]*AutomaticLoginEnable[[:space:]]*=/ {
+                if (!seen_auto_enable) {
+                    print "AutomaticLoginEnable=true"
+                }
+                seen_auto_enable = 1
+                next
+            }
+            in_daemon && /^[[:space:]]*#?[[:space:]]*AutomaticLogin[[:space:]]*=/ {
+                if (!seen_auto_login) {
+                    print "AutomaticLogin=" login_user
+                }
+                seen_auto_login = 1
+                next
+            }
+            in_daemon && /^[[:space:]]*#?[[:space:]]*WaylandEnable[[:space:]]*=/ {
+                if (!seen_wayland) {
+                    print "WaylandEnable=false"
+                }
+                seen_wayland = 1
+                next
+            }
+            { print }
+            END {
+                if (in_daemon) {
+                    emit_daemon_keys()
+                } else if (!seen_daemon) {
+                    print ""
+                    print "[daemon]"
+                    print "# Auto-login the streaming user so an X session exists at boot for"
+                    print "# sunshine to capture. Wayland is disabled because sunshine'\''s X11"
+                    print "# capture path requires an X server."
+                    print "AutomaticLoginEnable=true"
+                    print "AutomaticLogin=" login_user
+                    print "WaylandEnable=false"
+                }
+            }
+        ' "${gdm_conf}" > "${temp_gdm}"; then
+            log_error "Failed to update ${gdm_conf}"
+            exit 1
+        fi
+    else
+        log_substep "Creating ${gdm_conf}..."
+        {
+            printf '# GNOME Display Manager configuration\n'
+            printf '# Managed by dgx-spark-sunshine-setup\n'
+            printf '[daemon]\n'
+            printf '# Auto-login the streaming user so an X session exists at boot for\n'
+            printf '# sunshine to capture. Wayland is disabled because sunshine'\''s X11\n'
+            printf '# capture path requires an X server.\n'
+            printf 'AutomaticLoginEnable=true\n'
+            printf 'AutomaticLogin=%s\n' "${USER}"
+            printf 'WaylandEnable=false\n'
+        } > "${temp_gdm}"
+    fi
+
+    log_substep "Writing ${gdm_conf}..."
+    sudo install -m 0644 "${temp_gdm}" "${gdm_conf}"
+    log_success "GDM auto-login enabled for ${USER}"
+    log_warning "Takes effect after reboot"
+
+    log_complete
+}
+
+# ============================================================================
 # Sunshine Configuration
 # ============================================================================
 configure_sunshine() {
@@ -1025,6 +1219,8 @@ main() {
     install_edid
     configure_x11
     configure_permissions
+    configure_xprofile
+    configure_autologin
     configure_sunshine
     validate_installation
     configure_tailscale
