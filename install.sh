@@ -667,6 +667,23 @@ configure_xprofile() {
     local xprofile="${HOME}/.xprofile"
     local dbus_line='dbus-update-activation-environment --systemd DISPLAY XAUTHORITY'
 
+    # ~/.xprofile is only sourced under X11 sessions. Under Wayland (default
+    # in Ubuntu 25.04+ and possible on 24.04 if WaylandEnable was flipped),
+    # the dbus-update line never runs and Sunshine's ExecStartPre will time
+    # out after 60s on every boot. configure_autologin (next step) flips
+    # WaylandEnable=false for the auto-login path, but a user who declines
+    # auto-login and logs in to a Wayland session manually will silently hit
+    # this. Warn loudly; don't abort — the write is still correct for the
+    # next X11 login.
+    local session_type
+    session_type=$(loginctl show-session "${XDG_SESSION_ID:-}" -p Type --value 2>/dev/null || echo "unknown")
+    if [[ "${session_type}" == "wayland" ]]; then
+        log_warning "Current session is Wayland — ~/.xprofile is NOT sourced under Wayland."
+        log_warning "Sunshine needs an X11 session. Either accept the GDM auto-login"
+        log_warning "prompt in the next step (it disables Wayland), or log out and pick"
+        log_warning "'Ubuntu on Xorg' from the GDM gear menu before starting Sunshine."
+    fi
+
     log_substep "Ensuring ~/.xprofile runs dbus-update on X login..."
 
     if [[ -f "${xprofile}" ]] && grep -qF -- "${dbus_line}" "${xprofile}"; then
