@@ -224,6 +224,15 @@ check_prerequisites() {
 configure_install_mode() {
     log_step "Installation Mode"
 
+    # Honor a pre-exported INSTALL_MODE so the installer works under CI,
+    # Ansible, or any other non-interactive re-run path without blocking
+    # on a prompt. Accepts exactly the two values the interactive path can set.
+    if [[ "${INSTALL_MODE:-}" =~ ^(monitor|headless)$ ]]; then
+        log_substep "Mode: ${INSTALL_MODE} (from environment)"
+        log_complete
+        return 0
+    fi
+
     echo ""
     echo -e "${WHITE}${BOLD}How will this Spark be used?${RESET}"
     echo ""
@@ -239,8 +248,9 @@ configure_install_mode() {
 
     local choice
     while true; do
-        prompt_user "Select installation mode (1-2)" choice
-        case "${choice}" in
+        prompt_user "Select installation mode (1-2) [1]" choice
+        # Bare Enter selects 1 (Recommended), matching the [1] hint in the prompt.
+        case "${choice:-1}" in
             1)
                 INSTALL_MODE="monitor"
                 log_substep "Mode: monitor or dummy plug"
