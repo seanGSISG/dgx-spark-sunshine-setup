@@ -39,6 +39,8 @@ nvenc_preset = p7
 nvenc_tuning_info = lowlatency
 nvenc_vbv_increase = 0
 nvenc_rc = cbr
+nvenc_spatial_aq = 1
+nvenc_multipass = qres
 
 # Performance
 channels = 2
