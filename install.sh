@@ -31,6 +31,7 @@ readonly TEMPLATES_DIR="${SCRIPT_DIR}/templates"
 readonly BACKUP_DIR="${HOME}/.sunshine-setup-backups/$(date +%Y%m%d-%H%M%S)"
 
 readonly SUNSHINE_RELEASE_URL="https://api.github.com/repos/LizardByte/Sunshine/releases/latest"
+readonly SUNSHINE_FALLBACK_DEB="https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-arm64.deb"
 readonly SUNSHINE_CONFIG_DIR="${HOME}/.config/sunshine"
 readonly SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 
@@ -536,30 +537,22 @@ install_sunshine() {
     fi
 
     log_substep "Fetching latest release information..."
-    local release_info http_code
-    # Fetch release info with error handling for both network and HTTP failures
-    if ! release_info=$(curl -sL --fail-with-body "${SUNSHINE_RELEASE_URL}"); then
-        log_error "Failed to fetch release info from GitHub (network error or rate-limited)"
-        log_substep "Check your internet connection or try again later"
-        exit 1
-    fi
-    if [[ -z "${release_info}" ]]; then
-        log_error "Empty response from GitHub API"
-        exit 1
-    fi
+    local release_info download_url
 
-    local download_url
-    # Specifically get Ubuntu 24.04 ARM64 package (not Debian Trixie which has library version mismatches)
-    download_url=$(echo "${release_info}" | grep -o "https://[^\"]*sunshine-ubuntu-24\.04-arm64\.deb" | head -1)
+    # Try GitHub API for latest release, fall back to pinned version on failure
+    if release_info=$(curl -sL --fail-with-body "${SUNSHINE_RELEASE_URL}" 2>/dev/null) && [[ -n "${release_info}" ]]; then
+        # Specifically get Ubuntu 24.04 ARM64 package (not Debian Trixie which has library version mismatches)
+        download_url=$(echo "${release_info}" | grep -o "https://[^\"]*sunshine-ubuntu-24\.04-arm64\.deb" | head -1)
 
-    # Fallback to any Ubuntu ARM64 package
-    if [[ -z "${download_url}" ]]; then
-        download_url=$(echo "${release_info}" | grep -o "https://[^\"]*sunshine-ubuntu.*arm64\.deb" | head -1)
+        # Fallback to any Ubuntu ARM64 package
+        if [[ -z "${download_url}" ]]; then
+            download_url=$(echo "${release_info}" | grep -o "https://[^\"]*sunshine-ubuntu.*arm64\.deb" | head -1)
+        fi
     fi
 
-    if [[ -z "${download_url}" ]]; then
-        log_error "Failed to find Ubuntu ARM64 .deb package in latest release"
-        exit 1
+    if [[ -z "${download_url:-}" ]]; then
+        log_warning "GitHub API unavailable or no ARM64 .deb found — using pinned fallback version"
+        download_url="${SUNSHINE_FALLBACK_DEB}"
     fi
 
     local deb_file
