@@ -228,7 +228,7 @@ check_prerequisites() {
 #              no synthetic xorg.conf is installed. Recommended for most.
 #
 #   headless - Truly headless, with nothing plugged into the GPU. Installs
-#              an xorg.conf that drives a virtual TV-0 connector with a
+#              an xorg.conf that drives a virtual DFP-0 connector with a
 #              custom EDID so sunshine can still capture a display.
 #              Will break if a real monitor is later connected.
 #
@@ -662,8 +662,9 @@ configure_x11() {
         exit 1
     fi
 
-    # Convert from domain:bus:device.function to PCI:bus:device:function format
-    # lspci shows: 000f:01:00.0 -> we need: PCI:15:1:0
+    # Convert from domain:bus:device.function to Xorg BusID format.
+    # lspci shows: 000f:01:00.0 -> we need: PCI:1@15:0:0  (non-zero domain)
+    # lspci shows: 0000:01:00.0 -> we need: PCI:1:0:0      (domain 0)
     # Extract components
     local domain bus device func
     domain=$(echo "${bus_id}" | cut -d: -f1)
@@ -687,10 +688,17 @@ configure_x11() {
     device=$((16#${device}))
     func=$((16#${func}))
 
-    local pci_bus_id="PCI:${bus}:${device}:${func}"
+    # Xorg requires bus@domain format when domain is non-zero.
+    # When domain is 0, use the simpler bus:device:function for compatibility.
+    local pci_bus_id
+    if [[ ${domain} -ne 0 ]]; then
+        pci_bus_id="PCI:${bus}@${domain}:${device}:${func}"
+    else
+        pci_bus_id="PCI:${bus}:${device}:${func}"
+    fi
 
     # Validate BusID format for safe sed substitution
-    if [[ ! "${pci_bus_id}" =~ ^PCI:[0-9]+:[0-9]+:[0-9]+$ ]]; then
+    if [[ ! "${pci_bus_id}" =~ ^PCI:[0-9]+(@[0-9]+)?:[0-9]+:[0-9]+$ ]]; then
         log_error "Invalid BusID format generated: ${pci_bus_id}"
         exit 1
     fi
@@ -941,9 +949,25 @@ configure_sunshine() {
         log_error "sunshine.conf template not found: ${TEMPLATES_DIR}/sunshine.conf.template"
         exit 1
     fi
+
+    # Detect server's primary LAN IP for CSRF allowed origins.
+    # Sunshine v2026.x enables CSRF protection; the Web UI is unusable from
+    # a LAN IP unless that origin is explicitly allowed.
+    local lan_ip
+    lan_ip=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' \
+        | grep -v '127.0.0.1' | head -1)
+
+    if [[ -z "${lan_ip}" ]]; then
+        log_warning "Could not detect LAN IP for CSRF allowlist"
+        lan_ip="localhost"
+    fi
+    local csrf_origins="https://${lan_ip}:47990,https://localhost:47990"
+    log_substep "CSRF allowed origins: ${csrf_origins}"
+
     sed -e "s|{{CODEC}}|${CODEC}|g" \
         -e "s|{{BITRATE}}|${BITRATE}|g" \
         -e "s|{{FPS}}|${REFRESH_RATE}|g" \
+        -e "s|{{CSRF_ALLOWED_ORIGINS}}|${csrf_origins}|g" \
         "${TEMPLATES_DIR}/sunshine.conf.template" > "${SUNSHINE_CONFIG_DIR}/sunshine.conf"
 
     log_success "sunshine.conf created"

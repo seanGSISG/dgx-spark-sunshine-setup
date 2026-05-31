@@ -5,7 +5,11 @@
 # Allow external access
 # WARNING: any remote host on the internet can access the Sunshine Web UI, not just your local network
 # Ensure proper firewall and strong password
-# origin_web_ui_allowed = wan
+origin_web_ui_allowed = wan
+
+# CSRF protection (Sunshine v2026.x+): allow requests from the server's own
+# LAN IP so that the Web UI is functional when accessed via LAN address.
+csrf_allowed_origins = {{CSRF_ALLOWED_ORIGINS}}
 
 # Display Output
 # Use X11 capture rather than the default KMS path. On Ubuntu 24.04 the
