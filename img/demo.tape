@@ -4,9 +4,9 @@ Output "img/demo.gif"
 Set Shell bash
 Set FontFamily "JetBrainsMono Nerd Font"
 Set FontSize 22
-Set Width 1340
-Set Height 640
-Set Padding 44
+Set Width 1500
+Set Height 900
+Set Padding 50
 Set Theme "Catppuccin Mocha"
 Set BorderRadius 12
 Set Margin 30

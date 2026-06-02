@@ -13,7 +13,18 @@ row() { printf "  ${G}✔${R}  ${C}%-17s${R} ${B}%-16s${R} ${D}%s${R}\n" "$1" "$
 
 printf '\033[2J\033[3J\033[H'   # clear screen + scrollback so the panel stands alone
 echo
-echo -e "  ${B}DGX Spark · Sunshine${R}   ${D}headless 4K remote desktop · no dummy plug${R}"
+
+# DGX SPARK wordmark — mirrors print_logo() in install.sh (NVIDIA green)
+NV=$'\033[38;5;112m'
+echo -e "${NV}${B}"
+echo "  ██████╗  ██████╗ ██╗  ██╗    ███████╗██████╗  █████╗ ██████╗ ██╗  ██╗"
+echo "  ██╔══██╗██╔════╝ ╚██╗██╔╝    ██╔════╝██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝"
+echo "  ██║  ██║██║  ███╗ ╚███╔╝     ███████╗██████╔╝███████║██████╔╝█████╔╝ "
+echo "  ██║  ██║██║   ██║ ██╔██╗     ╚════██║██╔═══╝ ██╔══██║██╔══██╗██╔═██╗ "
+echo "  ██████╔╝╚██████╔╝██╔╝ ██╗    ███████║██║     ██║  ██║██║  ██║██║  ██╗"
+echo "  ╚═════╝  ╚═════╝ ╚═╝  ╚═╝    ╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝"
+echo -e "${R}"
+echo -e "  ${B}Sunshine Streaming${R}   ${D}headless 4K remote desktop · no dummy plug${R}"
 echo
 row "Virtual display"  "HDMI-0 / DFP-0" "3840×2160 · software EDID"
 row "Encoder"          "hevc_nvenc"     "NVENC · Blackwell GB10"
