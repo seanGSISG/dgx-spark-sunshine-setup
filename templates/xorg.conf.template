@@ -22,7 +22,7 @@ Section "Device"
     Driver         "nvidia"
     VendorName     "NVIDIA Corporation"
     BoardName      "GB10"
-    BusID          "{{BUS_ID}}"
+{{BUS_ID_LINE}}
     Option         "ConnectedMonitor" "TV-0"
     Option         "CustomEDID" "TV-0:{{EDID_PATH}}"
     Option         "IgnoreEDID" "false"

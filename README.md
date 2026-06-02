@@ -86,6 +86,17 @@ Last verified working on **2026-06-02** with a headless, non-interactive install
 
 GB10 has a ~165 MHz pixel clock limit. Practical impact: 4K@120Hz won't work; 4K@60Hz and 1440p@120Hz do.
 
+### Note: GB10 PCI domain & Xorg BusID
+
+On the GB10 the GPU sits in a **non-zero PCI domain** (e.g. `000f:01:00.0`,
+shown by `nvidia-smi` as `0000000F:01:00.0`). The Xorg `BusID "PCI:bus:dev:func"`
+string has no way to express a PCI domain, so a generated `BusID` like
+`PCI:1:0:0` points at the wrong (domain-0) address and X finds no device. For
+single-GPU systems the installer **omits `BusID`** and lets the NVIDIA driver
+auto-detect the GPU. Symptom if this is wrong: the autologin Xorg session dies
+with `(EE) No devices detected` / `no screens found`, GDM falls back to the
+greeter, and Sunshine never starts (it can't bind `:47990`).
+
 ### Repository Structure
 
 ```

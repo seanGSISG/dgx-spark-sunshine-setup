@@ -19,6 +19,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - This CHANGELOG.
 
 ### Fixed
+- Generated `xorg.conf` used a domain-less `BusID` (`PCI:1:0:0`) that matched no
+  device on GB10 — the GPU sits in PCI domain `000f`, and the Xorg `BusID`
+  format cannot encode a non-zero PCI domain. The autologin X session failed
+  with "no screens found", so `XAUTHORITY` was never propagated and Sunshine
+  never started. Single-GPU systems now omit `BusID` entirely and let the NVIDIA
+  driver auto-detect the GPU.
 - Exported selection variables (`INSTALL_MODE`, `RESOLUTION`, `CODEC`, …) were
   unconditionally reset to empty at startup, so values pre-set in the
   environment were ignored. They now initialize with `${VAR:-}` and are honored.
@@ -31,6 +37,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `[Service]` they were silently ignored, disabling the restart rate-limit.
 
 ### Changed
+- Headless install now backs up a pre-existing `~/.xsession` (to
+  `~/.xsession.disabled-by-sunshine-setup`) before enabling GDM auto-login, so a
+  stale session file (e.g. leftover `exec startxfce4`) can't hijack the intended
+  GNOME-on-Xorg session.
 - Bumped the pinned fallback Sunshine `.deb` from v2025.924.154138 to
   v2026.516.143833 (verified working on GB10 / driver 580.142 / Ubuntu 24.04.4).
   The fallback is only used when the GitHub releases API is unreachable.

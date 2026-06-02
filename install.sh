@@ -756,40 +756,60 @@ configure_x11() {
         exit 1
     fi
 
-    # Convert from domain:bus:device.function to PCI:bus:device:function format
-    # lspci shows: 000f:01:00.0 -> we need: PCI:15:1:0
-    # Extract components
-    local domain bus device func
-    domain=$(echo "${bus_id}" | cut -d: -f1)
-    bus=$(echo "${bus_id}" | cut -d: -f2)
-    device=$(echo "${bus_id}" | cut -d: -f3 | cut -d. -f1)
-    func=$(echo "${bus_id}" | cut -d. -f2)
+    # Count NVIDIA GPUs. The Xorg "BusID PCI:bus:dev:func" string has no portable
+    # way to express a non-zero PCI domain, and the GB10 GPU sits in a non-zero
+    # domain (e.g. 000f). For a single GPU the robust fix is to omit BusID
+    # entirely and let the NVIDIA driver auto-detect it.
+    local gpu_count
+    gpu_count=$(lspci -D | grep -Ei "NVIDIA" | grep -Ei "VGA compatible controller|3D controller" | wc -l)
 
-    # Validate hex format before conversion
-    if [[ ! "${domain}" =~ ^[0-9a-fA-F]+$ ]] || \
-       [[ ! "${bus}" =~ ^[0-9a-fA-F]+$ ]] || \
-       [[ ! "${device}" =~ ^[0-9a-fA-F]+$ ]] || \
-       [[ ! "${func}" =~ ^[0-9a-fA-F]+$ ]]; then
-        log_error "GPU BusID contains non-hex values: ${bus_id}"
-        log_substep "Expected format: domain:bus:device.function (hex digits)"
-        exit 1
+    local bus_id_line
+    if [[ "${gpu_count}" -le 1 ]]; then
+        bus_id_line="    # BusID omitted: single GPU auto-detected (avoids PCI-domain issues on GB10)"
+        log_substep "Single NVIDIA GPU detected (${bus_id})"
+        log_success "Omitting BusID so the NVIDIA driver auto-detects the GPU"
+    else
+        # Multi-GPU: build a BusID. Convert domain:bus:device.function to
+        # PCI:bus:device:function. lspci shows e.g. 000f:01:00.0.
+        log_substep "Multiple NVIDIA GPUs detected (${gpu_count}); building explicit BusID"
+        local domain bus device func
+        domain=$(echo "${bus_id}" | cut -d: -f1)
+        bus=$(echo "${bus_id}" | cut -d: -f2)
+        device=$(echo "${bus_id}" | cut -d: -f3 | cut -d. -f1)
+        func=$(echo "${bus_id}" | cut -d. -f2)
+
+        # Validate hex format before conversion
+        if [[ ! "${domain}" =~ ^[0-9a-fA-F]+$ ]] || \
+           [[ ! "${bus}" =~ ^[0-9a-fA-F]+$ ]] || \
+           [[ ! "${device}" =~ ^[0-9a-fA-F]+$ ]] || \
+           [[ ! "${func}" =~ ^[0-9a-fA-F]+$ ]]; then
+            log_error "GPU BusID contains non-hex values: ${bus_id}"
+            log_substep "Expected format: domain:bus:device.function (hex digits)"
+            exit 1
+        fi
+
+        # Convert hex to decimal
+        domain=$((16#${domain}))
+        bus=$((16#${bus}))
+        device=$((16#${device}))
+        func=$((16#${func}))
+
+        if [[ "${domain}" -ne 0 ]]; then
+            log_warning "GPU is in non-zero PCI domain ${domain}; the Xorg BusID format"
+            log_warning "cannot encode a PCI domain. Multi-GPU on a non-zero domain is unsupported."
+        fi
+
+        local pci_bus_id="PCI:${bus}:${device}:${func}"
+
+        # Validate BusID format for safe sed substitution
+        if [[ ! "${pci_bus_id}" =~ ^PCI:[0-9]+:[0-9]+:[0-9]+$ ]]; then
+            log_error "Invalid BusID format generated: ${pci_bus_id}"
+            exit 1
+        fi
+
+        bus_id_line="    BusID          \"${pci_bus_id}\""
+        log_success "Detected BusID: ${pci_bus_id}"
     fi
-
-    # Convert hex to decimal
-    domain=$((16#${domain}))
-    bus=$((16#${bus}))
-    device=$((16#${device}))
-    func=$((16#${func}))
-
-    local pci_bus_id="PCI:${bus}:${device}:${func}"
-
-    # Validate BusID format for safe sed substitution
-    if [[ ! "${pci_bus_id}" =~ ^PCI:[0-9]+:[0-9]+:[0-9]+$ ]]; then
-        log_error "Invalid BusID format generated: ${pci_bus_id}"
-        exit 1
-    fi
-
-    log_success "Detected BusID: ${pci_bus_id}"
 
     # Generate xorg.conf from template
     log_substep "Generating xorg.conf from template..."
@@ -800,7 +820,7 @@ configure_x11() {
     local temp_xorg
     temp_xorg=$(mktemp /tmp/xorg.conf.XXXXXX)
     TEMP_FILES+=("${temp_xorg}")
-    sed -e "s|{{BUS_ID}}|${pci_bus_id}|g" \
+    sed -e "s|{{BUS_ID_LINE}}|${bus_id_line}|g" \
         -e "s|{{EDID_PATH}}|/etc/X11/4k120.edid|g" \
         "${TEMPLATES_DIR}/xorg.conf.template" > "${temp_xorg}"
 
@@ -932,6 +952,16 @@ configure_autologin() {
         log_substep "Skipped GDM auto-login configuration"
         log_complete
         return 0
+    fi
+
+    # A stale ~/.xsession (e.g. "exec startxfce4" left over from an xrdp+XFCE
+    # setup) can make a GDM that honors it launch the wrong session instead of
+    # GNOME-on-Xorg. In headless mode, back it up (never delete) so autologin
+    # reliably starts the intended GNOME session.
+    if [[ "${INSTALL_MODE}" == "headless" && -f "${HOME}/.xsession" ]]; then
+        local xsession_backup="${HOME}/.xsession.disabled-by-sunshine-setup"
+        mv "${HOME}/.xsession" "${xsession_backup}"
+        log_substep "Backed up stale ~/.xsession to ${xsession_backup}"
     fi
 
     local gdm_conf="/etc/gdm3/custom.conf"
