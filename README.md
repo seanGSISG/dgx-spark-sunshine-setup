@@ -1,6 +1,6 @@
 # NVIDIA DGX Spark Sunshine Streaming Setup
 
-![DGX Spark Sunshine Installer](img/install.png)
+![Demo: one installer from clone to headless 4K streaming](img/demo.gif)
 
 One-command installer that sets up [Sunshine](https://github.com/LizardByte/Sunshine) + a virtual X11 display on NVIDIA DGX Spark (GB10), so you can stream the desktop with Moonlight without a monitor attached.
 
@@ -71,6 +71,8 @@ Then open Sunshine Web UI and pair Moonlight:
   - For headless operation, you typically need desktop auto-login so a session exists after reboot
 
 ### Tested On
+
+![Verified: virtual 4K display, NVENC, Sunshine active](img/verified.png)
 
 Last verified working on **2026-06-02** with a headless, non-interactive install:
 

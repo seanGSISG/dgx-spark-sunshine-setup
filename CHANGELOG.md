@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- README visuals: animated demo GIF (`img/demo.gif`) and a "verified" status
+  still (`img/verified.png`), generated reproducibly with VHS/freeze from
+  `img/*.tape` + `img/status-demo.sh`. Replaced the old `img/install.png`.
 - Non-interactive install mode: `./install.sh -y` / `--yes` (or `NONINTERACTIVE=1`)
   runs unattended, taking the default for every prompt. Defaults are overridable
   via env vars: `INSTALL_MODE`, `RESOLUTION`, `REFRESH_RATE`, `CODEC`,
