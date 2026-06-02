@@ -26,3 +26,4 @@ edid/*.bin
 test-output/
 *.test
 .planning/
+.temp/
