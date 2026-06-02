@@ -19,6 +19,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - This CHANGELOG.
 
 ### Fixed
+- Headless streaming showed a black screen with only a cursor: the virtual
+  display forced the custom EDID onto `TV-0`, a legacy TV encoder that does not
+  exist on the GB10 (real heads are `DFP-0` = HDMI and `DFP-1..4` = USB-C DP).
+  With no head forced connected, the NVIDIA driver fell back to an 8x8 / 640x480
+  "NULL" mode, so the desktop had no framebuffer to render to. The virtual
+  display is now forced onto `DFP-0`; verified live at 3840x2160 with Sunshine
+  reporting `HDMI-0 connected: true`. Removed the deprecated, ignored
+  `IgnoreEDID` option.
 - Web UI actions were blocked by Sunshine 2026.516+ CSRF protection ("CSRF
   protection blocked request from origin ...") when the UI was reached by
   LAN/Tailscale IP or hostname rather than `localhost`. The installer now

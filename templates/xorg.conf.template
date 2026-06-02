@@ -23,9 +23,11 @@ Section "Device"
     VendorName     "NVIDIA Corporation"
     BoardName      "GB10"
 {{BUS_ID_LINE}}
-    Option         "ConnectedMonitor" "TV-0"
-    Option         "CustomEDID" "TV-0:{{EDID_PATH}}"
-    Option         "IgnoreEDID" "false"
+    # DFP-0 is the GB10's HDMI head (Internal TMDS). The virtual display must be
+    # forced onto a real connector; "TV-0" is a legacy TV encoder that doesn't
+    # exist here, so the EDID was ignored -> no connected head -> 8x8 black screen.
+    Option         "ConnectedMonitor" "DFP-0"
+    Option         "CustomEDID" "DFP-0:{{EDID_PATH}}"
     Option         "UseEdidDpi" "false"
     Option         "AllowEmptyInitialConfiguration" "true"
 EndSection

@@ -212,6 +212,20 @@ journalctl --user -u sunshine -n 200 --no-pager
 systemctl --user show-environment | grep -E 'DISPLAY|XAUTHORITY'
 ```
 
+- **Black screen with only a mouse cursor** (Sunshine connects, but the desktop
+  is blank): the virtual display isn't attaching, so X has no real framebuffer.
+  Check the screen size and connectors:
+
+```bash
+DISPLAY=:0 XAUTHORITY=/run/user/1000/gdm/Xauthority xrandr --query
+```
+
+  If you see `current 8 x 8` (or 640x480) and every output `disconnected`, the
+  custom EDID is being forced onto a connector that doesn't exist. On the GB10
+  the real heads are `DFP-0` (HDMI / Internal TMDS) and `DFP-1..4` (USB-C
+  DisplayPort) — **not** `TV-0`. The installer forces the EDID onto `DFP-0`; a
+  healthy box shows `HDMI-0 connected primary 3840x2160`.
+
 ### Autostart After Reboot
 
 Systemd user services may require lingering.

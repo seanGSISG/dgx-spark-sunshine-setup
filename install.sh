@@ -275,7 +275,7 @@ check_prerequisites() {
 #              no synthetic xorg.conf is installed. Recommended for most.
 #
 #   headless - Truly headless, with nothing plugged into the GPU. Installs
-#              an xorg.conf that drives a virtual TV-0 connector with a
+#              an xorg.conf that drives the DFP-0 (HDMI) connector with a
 #              custom EDID so sunshine can still capture a display.
 #              Will break if a real monitor is later connected.
 #
