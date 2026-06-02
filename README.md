@@ -14,6 +14,37 @@ sudo reboot
 ./after-install.sh
 ```
 
+### Non-interactive install
+
+For unattended runs (CI, Ansible, a one-shot remote command), pass `-y` / `--yes`
+(or export `NONINTERACTIVE=1`). Every prompt takes its default; defaults are
+overridable via environment variables:
+
+```bash
+# Headless, fully unattended, with explicit choices
+NONINTERACTIVE=1 INSTALL_MODE=headless RESOLUTION=2560x1440 REFRESH_RATE=120 \
+CODEC=hevc BITRATE_MBPS=100 EDID_SOURCE=bundled \
+ENABLE_AUTOSTART=1 ENABLE_AUTOLOGIN=1 INSTALL_TAILSCALE=0 \
+./install.sh -y
+
+# Simplest form — take every default (monitor mode)
+./install.sh -y
+```
+
+| Env var | Default | Values / notes |
+|---------|---------|----------------|
+| `INSTALL_MODE` | `monitor` | `monitor` or `headless` |
+| `RESOLUTION` | `2560x1440` | e.g. `3840x2160`, `1920x1080` |
+| `REFRESH_RATE` | `120` | Hz |
+| `CODEC` | `hevc` | `hevc`, `av1`, `h264` |
+| `BITRATE_MBPS` | `100` | 20–300 |
+| `EDID_SOURCE` | `bundled` | `bundled` or `custom` (set `CUSTOM_EDID_PATH`) |
+| `ENABLE_AUTOSTART` | `1` | enable the sunshine user service on login |
+| `ENABLE_AUTOLOGIN` | `1` headless / `0` monitor | GDM autologin + disable Wayland |
+| `INSTALL_TAILSCALE` | `0` | install/configure Tailscale |
+
+Run `./install.sh --help` for the full flag/env reference.
+
 Then open Sunshine Web UI and pair Moonlight:
 
 - `https://<YOUR_DGX_IP>:47990`
@@ -37,6 +68,19 @@ Then open Sunshine Web UI and pair Moonlight:
 - DGX Spark (GB10), Ubuntu 24.04
 - X11 desktop session on the DGX (Sunshine captures an X session on `:0`)
   - For headless operation, you typically need desktop auto-login so a session exists after reboot
+
+### Tested On
+
+Last verified working on **2026-06-02** with a headless, non-interactive install:
+
+| Component | Version |
+|-----------|---------|
+| System | NVIDIA DGX Spark (GB10, 128 GB unified LPDDR5x) |
+| OS | DGX OS / Ubuntu 24.04.4 LTS (Noble), arm64 |
+| Kernel | 6.17.0-1014-nvidia |
+| NVIDIA driver | 580.142 |
+| Sunshine | 2026.516.143833 |
+| Profile | headless · 2560x1440@120 · HEVC · 100 Mbps · bundled Samsung Q800T EDID |
 
 ### Hardware Limitation (GB10)
 

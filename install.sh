@@ -31,18 +31,52 @@ readonly TEMPLATES_DIR="${SCRIPT_DIR}/templates"
 readonly BACKUP_DIR="${HOME}/.sunshine-setup-backups/$(date +%Y%m%d-%H%M%S)"
 
 readonly SUNSHINE_RELEASE_URL="https://api.github.com/repos/LizardByte/Sunshine/releases/latest"
-readonly SUNSHINE_FALLBACK_DEB="https://github.com/LizardByte/Sunshine/releases/download/v2025.924.154138/sunshine-ubuntu-24.04-arm64.deb"
+# Pinned fallback used only when the GitHub API is unreachable. Bump to a
+# build that's been verified working on a real GB10 (see README "Tested On").
+# Last bumped 2026-06-02: v2026.516.143833, verified on driver 580.142 / Ubuntu 24.04.4.
+readonly SUNSHINE_FALLBACK_DEB="https://github.com/LizardByte/Sunshine/releases/download/v2026.516.143833/sunshine-ubuntu-24.04-arm64.deb"
 readonly SUNSHINE_CONFIG_DIR="${HOME}/.config/sunshine"
 readonly SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 
-# User selections (set via prompts)
-INSTALL_MODE=""
-RESOLUTION=""
-REFRESH_RATE=""
-CODEC=""
-BITRATE=""
-EDID_SOURCE=""
-CUSTOM_EDID_PATH=""
+# User selections (set via prompts). Initialized with ${VAR:-} so a value
+# pre-exported in the environment (e.g. INSTALL_MODE=headless) survives and is
+# honored by the non-interactive path instead of being clobbered to empty.
+INSTALL_MODE="${INSTALL_MODE:-}"
+RESOLUTION="${RESOLUTION:-}"
+REFRESH_RATE="${REFRESH_RATE:-}"
+CODEC="${CODEC:-}"
+BITRATE="${BITRATE:-}"
+EDID_SOURCE="${EDID_SOURCE:-}"
+CUSTOM_EDID_PATH="${CUSTOM_EDID_PATH:-}"
+
+# ============================================================================
+# Non-interactive mode
+# ============================================================================
+# When NONINTERACTIVE=1 (or --yes / -y), the installer never blocks on a prompt.
+# Every selection falls back to a sane default that can be overridden by
+# exporting the matching env var. This makes the installer safe to drive from
+# CI, Ansible, or a one-shot remote command.
+#
+#   NONINTERACTIVE=1                 enable unattended mode
+#   INSTALL_MODE=headless|monitor    install mode (default: monitor)
+#   RESOLUTION=2560x1440             default resolution
+#   REFRESH_RATE=120                 default refresh rate
+#   CODEC=hevc|av1|h264              default codec
+#   BITRATE_MBPS=100                 default bitrate in Mbps
+#   EDID_SOURCE=bundled|custom       headless EDID source (default: bundled)
+#   CUSTOM_EDID_PATH=/path.bin       required only when EDID_SOURCE=custom
+#   ENABLE_AUTOSTART=1               enable sunshine user service on login
+#   ENABLE_AUTOLOGIN=1               headless: GDM autologin + disable Wayland
+#   INSTALL_TAILSCALE=0              install/configure Tailscale (default: no)
+NONINTERACTIVE="${NONINTERACTIVE:-0}"
+# Defaults applied when a prompt would otherwise block in non-interactive mode.
+NI_RESOLUTION="${RESOLUTION:-2560x1440}"
+NI_REFRESH_RATE="${REFRESH_RATE:-120}"
+NI_CODEC="${CODEC:-hevc}"
+NI_BITRATE_MBPS="${BITRATE_MBPS:-100}"
+NI_EDID_SOURCE="${EDID_SOURCE:-bundled}"
+ENABLE_AUTOSTART="${ENABLE_AUTOSTART:-1}"
+INSTALL_TAILSCALE="${INSTALL_TAILSCALE:-0}"
 
 # Cleanup state
 TEMP_FILES=()
@@ -134,7 +168,18 @@ prompt_secret() {
 
 confirm() {
     local prompt="$1"
+    # Optional second arg is the non-interactive default: "y"/"1" or "n"/"0"
+    # (default "n"). Accepts 1/0 so callers can pass through boolean env vars.
+    local default="${2:-n}"
     local response
+    if [[ "${NONINTERACTIVE}" == "1" ]]; then
+        if [[ "${default}" == "y" || "${default}" == "1" ]]; then
+            echo -e "${YELLOW}?${RESET} ${prompt} ${DIM}[y/N]${RESET}: ${DIM}yes (non-interactive)${RESET}"
+            return 0
+        fi
+        echo -e "${YELLOW}?${RESET} ${prompt} ${DIM}[y/N]${RESET}: ${DIM}no (non-interactive)${RESET}"
+        return 1
+    fi
     echo -ne "${YELLOW}?${RESET} ${prompt} ${DIM}[y/N]${RESET}: "
     read -r response
     [[ "${response}" =~ ^[Yy]$ ]]
@@ -246,6 +291,15 @@ configure_install_mode() {
         return 0
     fi
 
+    # Non-interactive with no INSTALL_MODE exported: fall back to the
+    # recommended monitor mode rather than blocking on the menu.
+    if [[ "${NONINTERACTIVE}" == "1" ]]; then
+        INSTALL_MODE="monitor"
+        log_substep "Mode: monitor (non-interactive default)"
+        log_complete
+        return 0
+    fi
+
     echo ""
     echo -e "${WHITE}${BOLD}How will this Spark be used?${RESET}"
     echo ""
@@ -285,6 +339,14 @@ configure_install_mode() {
 
 configure_resolution() {
     log_step "Display Configuration"
+
+    if [[ "${NONINTERACTIVE}" == "1" ]]; then
+        RESOLUTION="${NI_RESOLUTION%%@*}"
+        REFRESH_RATE="${NI_REFRESH_RATE}"
+        log_success "Selected: ${RESOLUTION} @ ${REFRESH_RATE}Hz (non-interactive)"
+        log_complete
+        return 0
+    fi
 
     echo ""
     echo -e "${WHITE}${BOLD}Available Resolutions:${RESET}"
@@ -337,6 +399,13 @@ configure_resolution() {
 configure_codec() {
     log_step "Video Codec Configuration"
 
+    if [[ "${NONINTERACTIVE}" == "1" ]]; then
+        CODEC="${NI_CODEC}"
+        log_success "Selected: ${CODEC} (non-interactive)"
+        log_complete
+        return 0
+    fi
+
     echo ""
     echo -e "${WHITE}${BOLD}Available Codecs:${RESET}"
     echo -e "${GRAY}  1)${RESET} HEVC (H.265) ${DIM}(Better compatibility)${RESET} ${NVIDIA_GREEN}[Recommended]${RESET}"
@@ -373,6 +442,13 @@ configure_codec() {
 configure_bitrate() {
     log_step "Bitrate Configuration"
 
+    if [[ "${NONINTERACTIVE}" == "1" ]]; then
+        BITRATE=$((NI_BITRATE_MBPS * 1000))  # Kbps
+        log_success "Selected: ${NI_BITRATE_MBPS} Mbps (non-interactive)"
+        log_complete
+        return 0
+    fi
+
     echo ""
     echo -e "${WHITE}${BOLD}Recommended Bitrates:${RESET}"
     echo -e "${GRAY}  •${RESET} LAN (Gigabit):  ${DIM}100-200 Mbps${RESET}"
@@ -401,6 +477,21 @@ configure_edid() {
     if [[ "${INSTALL_MODE}" == "monitor" ]]; then
         log_substep "Monitor mode: using whatever EDID the connected display provides"
         EDID_SOURCE="none"
+        log_complete
+        return 0
+    fi
+
+    if [[ "${NONINTERACTIVE}" == "1" ]]; then
+        EDID_SOURCE="${NI_EDID_SOURCE}"
+        if [[ "${EDID_SOURCE}" == "custom" ]]; then
+            if [[ ! -f "${CUSTOM_EDID_PATH}" ]]; then
+                log_error "EDID_SOURCE=custom but CUSTOM_EDID_PATH not found: ${CUSTOM_EDID_PATH}"
+                exit 1
+            fi
+            log_success "Custom EDID file found (non-interactive)"
+        else
+            log_substep "Using bundled Samsung Q800T EDID (non-interactive)"
+        fi
         log_complete
         return 0
     fi
@@ -459,7 +550,7 @@ print_configuration_summary() {
     echo -e "${NVIDIA_GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo ""
 
-    if ! confirm "Proceed with installation?"; then
+    if ! confirm "Proceed with installation?" "y"; then
         log_warning "Installation cancelled by user"
         exit 0
     fi
@@ -529,7 +620,7 @@ install_sunshine() {
         current_version=$(sunshine --version 2>/dev/null || echo "unknown")
         log_substep "Current version: ${current_version}"
 
-        if ! confirm "Reinstall/upgrade Sunshine?"; then
+        if ! confirm "Reinstall/upgrade Sunshine?" "y"; then
             log_info "Skipping Sunshine installation"
             log_complete
             return
@@ -542,11 +633,14 @@ install_sunshine() {
     # Try GitHub API for latest release, fall back to pinned version on failure
     if release_info=$(curl -sL --fail-with-body "${SUNSHINE_RELEASE_URL}" 2>/dev/null) && [[ -n "${release_info}" ]]; then
         # Specifically get Ubuntu 24.04 ARM64 package (not Debian Trixie which has library version mismatches)
-        download_url=$(echo "${release_info}" | grep -o "https://[^\"]*sunshine-ubuntu-24\.04-arm64\.deb" | head -1)
+        # `|| true` guards against pipefail+set -e: head -1 closes the pipe
+        # early, grep gets SIGPIPE, and the pipeline would otherwise abort the
+        # whole script even on a successful match.
+        download_url=$(echo "${release_info}" | grep -o "https://[^\"]*sunshine-ubuntu-24\.04-arm64\.deb" | head -1 || true)
 
         # Fallback to any Ubuntu ARM64 package
         if [[ -z "${download_url}" ]]; then
-            download_url=$(echo "${release_info}" | grep -o "https://[^\"]*sunshine-ubuntu.*arm64\.deb" | head -1)
+            download_url=$(echo "${release_info}" | grep -o "https://[^\"]*sunshine-ubuntu.*arm64\.deb" | head -1 || true)
         fi
     fi
 
@@ -649,11 +743,11 @@ configure_x11() {
     local bus_id
     # Prefer fully-qualified domain:bus:device.function (via -D) and match both
     # "VGA compatible controller" and "3D controller" classes.
-    bus_id=$(lspci -D | grep -Ei "NVIDIA" | grep -Ei "VGA compatible controller|3D controller" | awk '{print $1}' | head -n 1)
+    bus_id=$(lspci -D | grep -Ei "NVIDIA" | grep -Ei "VGA compatible controller|3D controller" | awk '{print $1}' | head -n 1 || true)
 
     # Fallback: try to find any NVIDIA GPU-like device (still with -D for domain)
     if [[ -z "${bus_id}" ]]; then
-        bus_id=$(lspci -D | grep -Ei "nvidia.*gb10" | awk '{print $1}' | head -n 1)
+        bus_id=$(lspci -D | grep -Ei "nvidia.*gb10" | awk '{print $1}' | head -n 1 || true)
     fi
 
     if [[ -z "${bus_id}" ]]; then
@@ -816,8 +910,23 @@ configure_autologin() {
     echo ""
 
     local response
-    echo -ne "${NVIDIA_GREEN}?${RESET} Enable GDM auto-login as '${USER}' and disable Wayland? ${DIM}[y/N]${RESET}: "
-    read -r response
+    if [[ "${NONINTERACTIVE}" == "1" ]]; then
+        # Headless streaming requires an X session at boot, so default to
+        # enabling autologin + disabling Wayland unless explicitly turned off.
+        local autologin_default="${ENABLE_AUTOLOGIN:-1}"
+        if [[ "${INSTALL_MODE}" != "headless" ]]; then
+            autologin_default="${ENABLE_AUTOLOGIN:-0}"
+        fi
+        if [[ "${autologin_default}" == "1" ]]; then
+            response="y"
+            log_substep "Enabling GDM auto-login + Xorg (non-interactive)"
+        else
+            response="n"
+        fi
+    else
+        echo -ne "${NVIDIA_GREEN}?${RESET} Enable GDM auto-login as '${USER}' and disable Wayland? ${DIM}[y/N]${RESET}: "
+        read -r response
+    fi
 
     if [[ ! "${response}" =~ ^[Yy]$ ]]; then
         log_substep "Skipped GDM auto-login configuration"
@@ -975,9 +1084,10 @@ configure_sunshine() {
     systemctl --user daemon-reload
     log_success "Systemd configuration reloaded"
 
-    # Ask if they want auto-start
+    # Ask if they want auto-start (default yes in non-interactive mode,
+    # overridable via ENABLE_AUTOSTART=0).
     echo ""
-    if confirm "Enable Sunshine to start automatically on login?"; then
+    if confirm "Enable Sunshine to start automatically on login?" "${ENABLE_AUTOSTART}"; then
         systemctl --user enable sunshine
         log_success "Sunshine service enabled (will start automatically on next login)"
 
@@ -1006,7 +1116,7 @@ configure_tailscale() {
     log_step "Optional: Tailscale Remote Access"
 
     echo ""
-    if ! confirm "Install and configure Tailscale for remote access (VPN)?"; then
+    if ! confirm "Install and configure Tailscale for remote access (VPN)?" "${INSTALL_TAILSCALE}"; then
         log_info "Skipping Tailscale setup"
         log_complete
         return
@@ -1307,6 +1417,31 @@ print_final_instructions() {
 # Main Installation Flow
 # ============================================================================
 main() {
+    # Parse args. -y/--yes (or NONINTERACTIVE=1) runs fully unattended,
+    # taking the default for every prompt. Selections can still be overridden
+    # via env vars (INSTALL_MODE, RESOLUTION, CODEC, BITRATE_MBPS, ...).
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -y|--yes|--non-interactive)
+                NONINTERACTIVE=1
+                ;;
+            -h|--help)
+                echo "Usage: ./install.sh [-y|--yes]"
+                echo ""
+                echo "  -y, --yes    Non-interactive install (defaults for all prompts)."
+                echo ""
+                echo "Env overrides (with -y): INSTALL_MODE=headless|monitor RESOLUTION=2560x1440"
+                echo "  REFRESH_RATE=120 CODEC=hevc|av1|h264 BITRATE_MBPS=100 EDID_SOURCE=bundled|custom"
+                echo "  ENABLE_AUTOSTART=1 ENABLE_AUTOLOGIN=1 INSTALL_TAILSCALE=0"
+                exit 0
+                ;;
+            *)
+                log_warning "Unknown argument: $1 (ignored)"
+                ;;
+        esac
+        shift
+    done
+
     # Display logo
     print_logo
 

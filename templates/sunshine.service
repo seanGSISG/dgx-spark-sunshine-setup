@@ -4,6 +4,10 @@ Documentation=https://docs.lizardbyte.dev/projects/sunshine/
 # Requires graphical session for X11 display access
 After=graphical-session.target
 Wants=graphical-session.target
+# Rate-limit restarts. These are [Unit] keys — systemd ignores them in
+# [Service], which silently disabled the restart cap.
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Service]
 Type=simple
@@ -11,8 +15,6 @@ ExecStart=/usr/bin/sunshine
 Restart=on-failure
 # Allow X11 time to initialize before restart attempts (avoids rapid restart loops)
 RestartSec=10
-StartLimitBurst=5
-StartLimitIntervalSec=60
 
 # Security hardening (compatible with GPU/X11 access)
 PrivateTmp=yes
