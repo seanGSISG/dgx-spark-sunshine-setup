@@ -19,6 +19,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - This CHANGELOG.
 
 ### Fixed
+- Web UI actions were blocked by Sunshine 2026.516+ CSRF protection ("CSRF
+  protection blocked request from origin ...") when the UI was reached by
+  LAN/Tailscale IP or hostname rather than `localhost`. The installer now
+  auto-detects the host's global IPv4 addresses (excluding docker/bridge
+  interfaces) plus its short/FQDN hostname and writes them to
+  `csrf_allowed_origins`. Overridable via `CSRF_ALLOWED_ORIGINS`.
 - Generated `xorg.conf` used a domain-less `BusID` (`PCI:1:0:0`) that matched no
   device on GB10 — the GPU sits in PCI domain `000f`, and the Xorg `BusID`
   format cannot encode a non-zero PCI domain. The autologin X session failed

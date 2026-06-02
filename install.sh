@@ -68,6 +68,8 @@ CUSTOM_EDID_PATH="${CUSTOM_EDID_PATH:-}"
 #   ENABLE_AUTOSTART=1               enable sunshine user service on login
 #   ENABLE_AUTOLOGIN=1               headless: GDM autologin + disable Wayland
 #   INSTALL_TAILSCALE=0              install/configure Tailscale (default: no)
+#   CSRF_ALLOWED_ORIGINS=...         comma-separated https:// Web UI origins
+#                                    (default: auto-detected LAN/Tailscale/host)
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 # Defaults applied when a prompt would otherwise block in non-interactive mode.
 NI_RESOLUTION="${RESOLUTION:-2560x1440}"
@@ -1080,9 +1082,40 @@ configure_sunshine() {
         log_error "sunshine.conf template not found: ${TEMPLATES_DIR}/sunshine.conf.template"
         exit 1
     fi
+    # Build CSRF allowed origins for the Web UI. Sunshine 2026.516+ blocks
+    # browser requests whose Origin header isn't allow-listed; localhost is
+    # built in, but access by LAN/Tailscale IP or hostname must be listed.
+    # Honor a pre-set CSRF_ALLOWED_ORIGINS; otherwise auto-detect.
+    local web_ui_port=47990
+    local csrf_origins="${CSRF_ALLOWED_ORIGINS:-}"
+    if [[ -z "${csrf_origins}" ]]; then
+        local origins=()
+        local ifname addr ip
+        # Global-scope IPv4 addresses, skipping docker/bridge virtual interfaces.
+        while read -r ifname addr; do
+            case "${ifname}" in
+                docker*|br-*|veth*|virbr*) continue ;;
+            esac
+            ip="${addr%%/*}"
+            [[ -n "${ip}" ]] && origins+=("https://${ip}:${web_ui_port}")
+        done < <(ip -4 -o addr show scope global 2>/dev/null | awk '{print $2, $4}' || true)
+
+        # Short hostname and FQDN (if distinct).
+        local hn fqdn
+        hn=$(hostname 2>/dev/null || true)
+        fqdn=$(hostname -f 2>/dev/null || true)
+        [[ -n "${hn}" ]] && origins+=("https://${hn}:${web_ui_port}")
+        [[ -n "${fqdn}" && "${fqdn}" != "${hn}" ]] && origins+=("https://${fqdn}:${web_ui_port}")
+
+        local IFS=,
+        csrf_origins="${origins[*]}"
+    fi
+    log_substep "CSRF allowed origins: ${csrf_origins:-<none — localhost only>}"
+
     sed -e "s|{{CODEC}}|${CODEC}|g" \
         -e "s|{{BITRATE}}|${BITRATE}|g" \
         -e "s|{{FPS}}|${REFRESH_RATE}|g" \
+        -e "s|{{CSRF_ORIGINS}}|${csrf_origins}|g" \
         "${TEMPLATES_DIR}/sunshine.conf.template" > "${SUNSHINE_CONFIG_DIR}/sunshine.conf"
 
     log_success "sunshine.conf created"

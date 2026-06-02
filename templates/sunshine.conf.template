@@ -7,6 +7,13 @@
 # Ensure proper firewall and strong password
 # origin_web_ui_allowed = wan
 
+# CSRF protection (Sunshine 2026.516+): browser requests whose Origin header
+# isn't allow-listed are blocked ("CSRF protection blocked request from
+# origin ..."). localhost is built in; the installer fills this with the
+# host's LAN/Tailscale IPs and hostname so the Web UI works when reached by
+# IP or name. Comma-separated list of https:// URL prefixes.
+csrf_allowed_origins = {{CSRF_ORIGINS}}
+
 # Display Output
 # Use X11 capture rather than the default KMS path. On Ubuntu 24.04 the
 # unprivileged_userns AppArmor profile strips CAP_SYS_ADMIN from sunshine

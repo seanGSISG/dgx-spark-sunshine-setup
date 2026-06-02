@@ -42,6 +42,7 @@ ENABLE_AUTOSTART=1 ENABLE_AUTOLOGIN=1 INSTALL_TAILSCALE=0 \
 | `ENABLE_AUTOSTART` | `1` | enable the sunshine user service on login |
 | `ENABLE_AUTOLOGIN` | `1` headless / `0` monitor | GDM autologin + disable Wayland |
 | `INSTALL_TAILSCALE` | `0` | install/configure Tailscale |
+| `CSRF_ALLOWED_ORIGINS` | auto-detected | comma-separated `https://` Web UI origins (LAN/Tailscale/host) |
 
 Run `./install.sh --help` for the full flag/env reference.
 
@@ -178,6 +179,22 @@ See [setup.md](setup.md) for a step-by-step guide for:
 - Configuring using only an iPad (Moonlight + Safari + SSH)
 
 ## Troubleshooting
+
+### Web UI: "CSRF protection blocked request from origin"
+
+Sunshine 2026.516+ rejects browser requests whose `Origin` isn't allow-listed,
+so the UI loads but every action fails. The installer auto-fills
+`csrf_allowed_origins` with the host's LAN/Tailscale IPs and hostname. If you
+reach the UI by a different address (new IP, reverse proxy, extra hostname), add
+it:
+
+```bash
+# ~/.config/sunshine/sunshine.conf — comma-separated, https:// prefixes
+csrf_allowed_origins = https://10.10.10.15:47990,https://spark.lab.lsdmt.me:47990
+systemctl --user restart sunshine
+```
+
+`localhost` is always allowed; there is no way to disable the check.
 
 ### Sunshine Service Status
 
