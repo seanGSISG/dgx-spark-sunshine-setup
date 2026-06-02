@@ -171,6 +171,11 @@ During install you can choose to install Tailscale.
   - Default is safe: it does **not** disable DNS and does **not** include tags
   - If you want Tailscale SSH later, set `TS_UP_EXTRA_ARGS="--ssh"` in `/etc/default/tailscale-autoconnect`
 
+> **Disable key expiry** for the Spark in the [Tailscale admin console](https://login.tailscale.com/admin/machines)
+> (device → `…` → *Disable key expiry*). Otherwise the node's key expires
+> (~every 90 days) and drops off the tailnet, locking you out remotely until
+> you re-authenticate at the console.
+
 ### iPad / SSH Setup
 
 See [setup.md](setup.md) for a step-by-step guide for:
@@ -202,6 +207,15 @@ systemctl --user restart sunshine
 systemctl --user status sunshine
 journalctl --user -u sunshine -n 200 --no-pager
 ```
+
+> **Managing over SSH:** `systemctl --user` commands need the user runtime
+> directory to find the session bus. If they fail with "Failed to connect to
+> bus" or report the service as not found, export it first:
+>
+> ```bash
+> export XDG_RUNTIME_DIR=/run/user/$(id -u)
+> systemctl --user restart sunshine
+> ```
 
 ### Black Screen / Capture Issues
 
@@ -252,6 +266,23 @@ journalctl --user -u sunshine -f | grep -i "encoder\|fps"
 # Lower bitrate for unstable connections
 # Increase bitrate for LAN with stable gigabit connection
 ```
+
+### Remote Streaming Capped / Laggy over Tailscale (relay vs direct)
+
+When streaming over Tailscale, you want a **direct** (peer-to-peer) connection,
+not a **relay** (DERP) one. Relay routes traffic through Tailscale's servers —
+extra latency and throttled throughput — and is only a fallback when direct P2P
+can't be established. Check while a stream is active:
+
+```bash
+tailscale status   # look for 'direct <ip>:<port>' vs 'relay "den"' next to the peer
+tailscale netcheck # 'UDP: true' and 'MappingVariesByDestIP: false' favor direct
+```
+
+If you're stuck on relay, the usual cause is a firewall blocking UDP. Allow
+outbound **UDP 41641** (and don't block UDP generally) on the network so
+Tailscale can punch a direct path. There is no benefit to forcing relay — direct
+is always preferable for low-latency, full-bandwidth streaming.
 
 ### Credentials Reset
 

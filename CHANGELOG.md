@@ -13,6 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `BITRATE_MBPS`, `EDID_SOURCE`, `CUSTOM_EDID_PATH`, `ENABLE_AUTOSTART`,
   `ENABLE_AUTOLOGIN`, `INSTALL_TAILSCALE`. Added `./install.sh --help`.
 - README "Non-interactive install" section with an env-var override table.
+- README troubleshooting tips: `XDG_RUNTIME_DIR` for `systemctl --user` over
+  SSH; Tailscale "disable key expiry" to avoid remote lockout; and a relay-vs-
+  direct (DERP) section for capped/laggy remote streaming (allow UDP 41641).
 - README "Tested On" section: DGX Spark (GB10), Ubuntu 24.04.4, kernel
   6.17.0-1014-nvidia, NVIDIA driver 580.142, Sunshine 2026.516.143833,
   verified 2026-06-02 (headless · 2560x1440@120 · HEVC · 100 Mbps).
