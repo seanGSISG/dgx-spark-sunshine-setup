@@ -1107,6 +1107,16 @@ configure_sunshine() {
         [[ -n "${hn}" ]] && origins+=("https://${hn}:${web_ui_port}")
         [[ -n "${fqdn}" && "${fqdn}" != "${hn}" ]] && origins+=("https://${fqdn}:${web_ui_port}")
 
+        # Tailscale MagicDNS name (e.g. host.tailnet.ts.net), if Tailscale is up.
+        # IPs above already cover the Tailscale address; this adds the name form.
+        if command -v tailscale &> /dev/null && command -v python3 &> /dev/null; then
+            local ts_name
+            ts_name=$(tailscale status --json 2>/dev/null | python3 -c \
+                'import sys,json; print(json.load(sys.stdin).get("Self",{}).get("DNSName","").rstrip("."))' \
+                2>/dev/null || true)
+            [[ -n "${ts_name}" ]] && origins+=("https://${ts_name}:${web_ui_port}")
+        fi
+
         local IFS=,
         csrf_origins="${origins[*]}"
     fi

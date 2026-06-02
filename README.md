@@ -184,13 +184,13 @@ See [setup.md](setup.md) for a step-by-step guide for:
 
 Sunshine 2026.516+ rejects browser requests whose `Origin` isn't allow-listed,
 so the UI loads but every action fails. The installer auto-fills
-`csrf_allowed_origins` with the host's LAN/Tailscale IPs and hostname. If you
-reach the UI by a different address (new IP, reverse proxy, extra hostname), add
-it:
+`csrf_allowed_origins` with the host's LAN/Tailscale IPs, hostname, and (if
+Tailscale is up) its MagicDNS name. If you reach the UI by a different address
+(new IP, reverse proxy, extra hostname), add it:
 
 ```bash
 # ~/.config/sunshine/sunshine.conf — comma-separated, https:// prefixes
-csrf_allowed_origins = https://10.10.10.15:47990,https://spark.lab.lsdmt.me:47990
+csrf_allowed_origins = https://192.168.1.50:47990,https://myhost.example.ts.net:47990
 systemctl --user restart sunshine
 ```
 
