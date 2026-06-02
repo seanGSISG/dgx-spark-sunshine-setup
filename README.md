@@ -269,6 +269,35 @@ journalctl --user -u sunshine -f | grep -i "encoder\|fps"
 # Increase bitrate for LAN with stable gigabit connection
 ```
 
+### Gotcha: No YUV 4:4:4 Chroma on GB10 (NV12-only encode path)
+
+Moonlight's **YUV 4:4:4** toggle will fail with *"this computer is not
+supported."* This is **not** a client/decoder problem — it's the host. The
+GB10's NVENC silicon *can* do HEVC/AV1 4:4:4, but Sunshine's X11-capture → CUDA →
+NVENC pipeline on this box only produces 4:2:0 (NV12) surfaces. You'll see this
+in `~/.config/sunshine/sunshine.log`:
+
+```
+Error: cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12
+```
+
+When the client requests 4:4:4 the host has no matching surface to hand back, so
+negotiation fails. The KMS capture path (which can feed other pixel formats) is
+disabled on Ubuntu 24.04 due to the AppArmor `unprivileged_userns` issue (see
+`capture = x11` note in `sunshine.conf`), so 4:4:4 is effectively unreachable as
+configured.
+
+**Why it matters:** 4:4:4 is the single biggest win for *text/code* clarity —
+4:2:0 subsampling blurs colored text (syntax highlighting, red error text) and
+anti-aliased font edges.
+
+**Workaround for crisp text without 4:4:4:** on a fast LAN, brute-force it with
+bitrate. At **150–200 Mbps** (set in the Moonlight client) and **native, 1:1
+resolution**, there are enough bits to re-encode chroma cleanly every frame and
+the 4:2:0 artifacts on text become nearly invisible. Use **HEVC** and **60 fps**
+(plenty for a static desktop; lower fps = more bits/frame = sharper). This is the
+recommended "coding, not gaming" profile.
+
 ### Remote Streaming Capped / Laggy over Tailscale (relay vs direct)
 
 When streaming over Tailscale, you want a **direct** (peer-to-peer) connection,
@@ -285,6 +314,14 @@ If you're stuck on relay, the usual cause is a firewall blocking UDP. Allow
 outbound **UDP 41641** (and don't block UDP generally) on the network so
 Tailscale can punch a direct path. There is no benefit to forcing relay — direct
 is always preferable for low-latency, full-bandwidth streaming.
+
+**On the same LAN, skip Tailscale entirely.** Connecting via the MagicDNS name
+(e.g. `spark`) resolves to the `100.x` Tailscale IP, so traffic still rides the
+WireGuard tunnel — ChaCha20 encrypt/decrypt overhead on both ends and a reduced
+(~1280-byte) MTU — even though the peer is one hop away. Add the host in Moonlight
+by its **raw LAN IP** (e.g. `10.10.10.15`) for the lowest latency and full
+2.5GbE throughput, and keep the MagicDNS entry as a separate host for when you're
+away from home.
 
 ### Credentials Reset
 
