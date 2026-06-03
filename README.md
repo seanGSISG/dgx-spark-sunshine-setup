@@ -4,6 +4,14 @@
 
 One-command installer that sets up [Sunshine](https://github.com/LizardByte/Sunshine) + a virtual X11 display on NVIDIA DGX Spark (GB10), so you can stream the desktop with Moonlight without a monitor attached.
 
+## 🙌 Contributor Shoutouts
+
+Huge thanks to the community members whose pull requests made this project better:
+
+- **[@DingPF](https://github.com/DingPF)** — [#14](https://github.com/seanGSISG/dgx-spark-sunshine-setup/pull/14): BusID domain fix, DFP connector, and CSRF protection
+- **[@charlielockyer-rice](https://github.com/charlielockyer-rice)** — [#8](https://github.com/seanGSISG/dgx-spark-sunshine-setup/pull/8): Fix `sunshine.conf` defaults for Ubuntu 24.04 + NVIDIA GB10
+- **[@NorseGaud](https://github.com/NorseGaud)** — [#6](https://github.com/seanGSISG/dgx-spark-sunshine-setup/pull/6): Tailscale uninstall support
+
 ## Quick Start
 
 ```bash
@@ -475,4 +483,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Sunshine/Moonlight Team** - For the excellent streaming protocol
 - **NVIDIA** - For DGX Spark hardware and driver support
 - **Linux TV Project** - For the EDID database
-- **Community Contributors** - For testing and feedback
+- **Community Contributors** - For testing and feedback, with special thanks to
+  [@DingPF](https://github.com/DingPF), [@charlielockyer-rice](https://github.com/charlielockyer-rice),
+  and [@NorseGaud](https://github.com/NorseGaud) (see [Contributor Shoutouts](#-contributor-shoutouts))
