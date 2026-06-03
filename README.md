@@ -8,8 +8,11 @@ One-command installer that sets up [Sunshine](https://github.com/LizardByte/Suns
 
 Huge thanks to the community members whose pull requests made this project better:
 
+- **[@charlielockyer-rice](https://github.com/charlielockyer-rice)** — multiple merged PRs that shaped the installer:
+  - [#10](https://github.com/seanGSISG/dgx-spark-sunshine-setup/pull/10): Add install-mode prompt (monitor or headless)
+  - [#9](https://github.com/seanGSISG/dgx-spark-sunshine-setup/pull/9): Propagate `XAUTHORITY` via `~/.xprofile` and optional GDM auto-login
+  - [#8](https://github.com/seanGSISG/dgx-spark-sunshine-setup/pull/8): Fix `sunshine.conf` defaults for Ubuntu 24.04 + NVIDIA GB10
 - **[@DingPF](https://github.com/DingPF)** — [#14](https://github.com/seanGSISG/dgx-spark-sunshine-setup/pull/14): BusID domain fix, DFP connector, and CSRF protection
-- **[@charlielockyer-rice](https://github.com/charlielockyer-rice)** — [#8](https://github.com/seanGSISG/dgx-spark-sunshine-setup/pull/8): Fix `sunshine.conf` defaults for Ubuntu 24.04 + NVIDIA GB10
 - **[@NorseGaud](https://github.com/NorseGaud)** — [#6](https://github.com/seanGSISG/dgx-spark-sunshine-setup/pull/6): Tailscale uninstall support
 
 ## Quick Start
